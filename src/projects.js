@@ -34,5 +34,5 @@ export const PROJECTS = [
 // Minutos sin actividad tras los cuales la pantalla vuelve a azul ("esperando tarea IA").
 export const IDLE_AFTER_MINUTES = 60;
 
-// Cada cuántos segundos se vuelve a consultar la API de GitHub.
-export const REFRESH_SECONDS = 30;
+// Cada cuántos segundos se vuelve a leer status.json (archivo estático, sin rate limit).
+export const REFRESH_SECONDS = 5;

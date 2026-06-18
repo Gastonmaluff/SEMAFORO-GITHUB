@@ -1,0 +1,82 @@
+# ============================================================
+#  BLOQUE notify-beacon  —  PEGAR EN CADA REPO MONITOREADO
+#  (Luca Park, Paraíso Escondido, Panel de Quintas, etc.)
+#
+#  Guardalo como:  .github/workflows/notify-beacon.yml
+#
+#  Avisa al beacon (AI Task Beacon) usando repository_dispatch:
+#    - cuando ARRANCA el deploy   -> status "working" (amarillo)
+#    - cuando TERMINA bien        -> status "success" (verde)
+#    - cuando FALLA / se cancela  -> status "failed"  (rojo)
+#
+#  No toca tu workflow de deploy: lo "escucha" con workflow_run.
+# ============================================================
+
+name: Notify Beacon
+
+on:
+  workflow_run:
+    # 👇 IMPORTANTE: poné el NAME EXACTO de tu workflow de deploy
+    #    (el valor de la línea "name:" del workflow que publica este repo).
+    workflows: ["Deploy to GitHub Pages"]
+    types: [requested, completed]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Calcular estado a enviar
+        id: state
+        run: |
+          if [ "${{ github.event.action }}" = "requested" ]; then
+            echo "status=working"  >> "$GITHUB_OUTPUT"
+            echo "color=yellow"    >> "$GITHUB_OUTPUT"
+            echo "message=Deploy en progreso" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
+            echo "status=success"  >> "$GITHUB_OUTPUT"
+            echo "color=green"     >> "$GITHUB_OUTPUT"
+            echo "message=Deploy exitoso" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed"   >> "$GITHUB_OUTPUT"
+            echo "color=red"       >> "$GITHUB_OUTPUT"
+            echo "message=Falló el deploy (${{ github.event.workflow_run.conclusion }})" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enviar repository_dispatch al beacon
+        env:
+          BEACON_REPO_TOKEN: ${{ secrets.BEACON_REPO_TOKEN }}
+          BEACON_OWNER: ${{ secrets.BEACON_OWNER }}
+          BEACON_REPO: ${{ secrets.BEACON_REPO }}
+
+          # 👇 EDITÁ ESTOS DOS por cada repo:
+          PROJECT_NAME: "Luca Park"
+          PAGES_URL: "https://gastonmaluff.github.io/LUCCAPARK-APP/"
+
+          STATUS: ${{ steps.state.outputs.status }}
+          COLOR: ${{ steps.state.outputs.color }}
+          MESSAGE: ${{ steps.state.outputs.message }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          SRC_REPO: ${{ github.repository }}
+        run: |
+          payload=$(jq -n \
+            --arg status   "$STATUS" \
+            --arg color    "$COLOR" \
+            --arg project  "$PROJECT_NAME" \
+            --arg repo     "$SRC_REPO" \
+            --arg message  "$MESSAGE" \
+            --arg runUrl   "$RUN_URL" \
+            --arg pagesUrl "$PAGES_URL" \
+            '{event_type: "beacon-status",
+              client_payload: {
+                status: $status, color: $color, project: $project,
+                repo: $repo, message: $message, runUrl: $runUrl, pagesUrl: $pagesUrl
+              }}')
+
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer $BEACON_REPO_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$BEACON_OWNER/$BEACON_REPO/dispatches" \
+            -d "$payload"

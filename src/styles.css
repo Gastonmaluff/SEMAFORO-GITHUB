@@ -127,6 +127,12 @@ body {
   border-radius: 10px;
 }
 
+.beacon-note {
+  font-size: clamp(13px, 1.5vw, 18px);
+  font-weight: 600;
+  opacity: 0.85;
+}
+
 .beacon-links {
   display: flex;
   gap: 24px;
@@ -255,6 +261,20 @@ body {
 
 .card-links a {
   color: #93c5fd;
+}
+
+.panel-foot {
+  padding: 14px 18px;
+  font-size: clamp(12px, 1.4vw, 15px);
+  opacity: 0.7;
+  border-top: 1px solid #334155;
+}
+
+.panel-foot code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 6px;
 }
 
 /* ---------------- Steam Deck y pantallas chicas ---------------- */

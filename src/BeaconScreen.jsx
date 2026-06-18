@@ -1,9 +1,12 @@
 import { formatTime, timeSince } from "./time.js";
 
 // Pantalla principal: una sola vista pensada para verse desde lejos en la Steam Deck.
+// Recibe el estado ya resuelto desde status.json.
 export default function BeaconScreen({
-  global,
+  display,
+  data,
   loading,
+  offline,
   countdown,
   lastFetch,
   muted,
@@ -13,27 +16,26 @@ export default function BeaconScreen({
   onRefresh,
   onOpenProjects,
   wakeSupported,
-  wakeActive,
-  projectCount
+  wakeActive
 }) {
-  if (loading || !global) {
+  if (loading || !display) {
     return (
       <div className="beacon" style={{ background: "#111827", color: "#e5e7eb" }}>
         <div className="beacon-big">CARGANDO…</div>
-        <div className="beacon-sub">Consultando GitHub Actions</div>
+        <div className="beacon-sub">Leyendo status.json</div>
       </div>
     );
   }
 
-  const r = global.result;
-  const project = r?.project;
-  const run = r?.run;
+  const project = data?.project;
+  const repo = data?.repo;
+  const message = data?.message;
+  const runUrl = data?.runUrl;
+  const pagesUrl = data?.pagesUrl;
+  const updatedAt = data?.updatedAt;
 
   return (
-    <div
-      className="beacon"
-      style={{ background: global.bg, color: global.fg }}
-    >
+    <div className="beacon" style={{ background: display.bg, color: display.fg }}>
       {/* Barra superior de controles */}
       <div className="topbar">
         <button className="btn" onClick={onOpenProjects}>
@@ -53,36 +55,40 @@ export default function BeaconScreen({
 
       {/* Núcleo: estado gigante */}
       <div className="beacon-core">
-        <div className="beacon-big">{global.bigText}</div>
+        <div className="beacon-big">{display.bigText}</div>
 
-        {project && (
-          <div className="beacon-project">{project.name}</div>
-        )}
+        {project && <div className="beacon-project">{project}</div>}
 
         <div className="beacon-meta">
-          {project && (
-            <span className="repo">
-              {project.owner}/{project.repo}
-            </span>
-          )}
-          {run?.name && <span className="wf">workflow: {run.name}</span>}
+          {repo && <span className="repo">{repo}</span>}
+          {message && <span className="wf">{message}</span>}
         </div>
 
         <div className="beacon-times">
-          <span>Última actualización: {formatTime(run?.updated_at)}</span>
-          <span>Cambió {timeSince(run?.updated_at)}</span>
+          <span>Última actualización: {formatTime(updatedAt)}</span>
+          <span>Cambió {timeSince(updatedAt)}</span>
         </div>
 
-        {r?.error && <div className="beacon-error">⚠ {r.error}</div>}
+        {display.idleOverridden && (
+          <div className="beacon-note">
+            Sin actividad reciente — esperando una nueva tarea.
+          </div>
+        )}
+
+        {offline && (
+          <div className="beacon-error">
+            ⚠ No se pudo leer status.json. Mostrando el último estado conocido.
+          </div>
+        )}
 
         <div className="beacon-links">
-          {run?.html_url && (
-            <a href={run.html_url} target="_blank" rel="noreferrer">
+          {runUrl && (
+            <a href={runUrl} target="_blank" rel="noreferrer">
               Abrir run en GitHub →
             </a>
           )}
-          {project?.pagesUrl && (
-            <a href={project.pagesUrl} target="_blank" rel="noreferrer">
+          {pagesUrl && (
+            <a href={pagesUrl} target="_blank" rel="noreferrer">
               Abrir sitio publicado →
             </a>
           )}
@@ -92,8 +98,6 @@ export default function BeaconScreen({
       {/* Pie: contador y estado de servicios */}
       <div className="bottombar">
         <span>Próxima revisión en {countdown} s</span>
-        <span className="dot">•</span>
-        <span>{projectCount} proyectos</span>
         <span className="dot">•</span>
         <span>Datos: {lastFetch ? formatTime(new Date(lastFetch).toISOString()) : "—"}</span>
         <span className="dot">•</span>

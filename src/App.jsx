@@ -1,17 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PROJECTS, REFRESH_SECONDS } from "./projects.js";
-import { fetchAll } from "./github.js";
-import { buildProjectResult, selectGlobal } from "./status.js";
+import { REFRESH_SECONDS } from "./projects.js";
+import { computeDisplay } from "./status.js";
 import { useWakeLock } from "./useWakeLock.js";
 import { playSuccess, playFailure, unlockAudio } from "./sound.js";
 import BeaconScreen from "./BeaconScreen.jsx";
 import ProjectsPanel from "./ProjectsPanel.jsx";
 
+// La app lee un archivo estático publicado en el mismo sitio de GitHub Pages.
+// No consulta la API de GitHub desde el frontend => sin rate limit 403.
+const STATUS_URL = `${import.meta.env.BASE_URL}status.json`;
+const STORAGE_KEY = "beacon:lastStatus";
+
+function loadStored() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
-  const [results, setResults] = useState([]); // resultados por proyecto
-  const [global, setGlobal] = useState(null); // estado elegido para la pantalla
-  const [view, setView] = useState("beacon"); // "beacon" | "projects"
+  const [data, setData] = useState(() => loadStored()); // último status.json válido
+  const [display, setDisplay] = useState(null);
+  const [view, setView] = useState("beacon");
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false); // no se pudo leer status.json
   const [lastFetch, setLastFetch] = useState(null);
   const [countdown, setCountdown] = useState(REFRESH_SECONDS);
   const [muted, setMuted] = useState(false);
@@ -20,34 +34,62 @@ export default function App() {
   const prevColorRef = useRef(null);
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
+  const dataRef = useRef(data);
+  dataRef.current = data;
 
   const { supported: wakeSupported, active: wakeActive } = useWakeLock(true);
 
-  // ---- Consulta a GitHub ----
+  // ---- Lee status.json con cache busting ----
   const refresh = useCallback(async () => {
-    const settled = await fetchAll(PROJECTS);
-    const now = Date.now();
-    const built = settled.map((s) =>
-      buildProjectResult(s.project, s.runs, s.error, now)
-    );
-    const chosen = selectGlobal(built, now);
+    try {
+      const res = await fetch(`${STATUS_URL}?t=${Date.now()}`, {
+        cache: "no-store"
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
 
-    // Sonido al cambiar a verde o rojo.
-    const prev = prevColorRef.current;
-    if (prev !== null && chosen.color !== prev && !mutedRef.current) {
-      if (chosen.color === "green") playSuccess();
-      else if (chosen.color === "red") playFailure();
+      setData(json);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(json));
+      } catch {
+        /* almacenamiento no disponible: no es crítico */
+      }
+      setOffline(false);
+      setLastFetch(Date.now());
+    } catch {
+      // No se pudo leer: mantener el último estado válido y avisar sin pasar a gris.
+      setOffline(true);
+    } finally {
+      setLoading(false);
+      setCountdown(REFRESH_SECONDS);
     }
-    prevColorRef.current = chosen.color;
-
-    setResults(built);
-    setGlobal(chosen);
-    setLastFetch(now);
-    setLoading(false);
-    setCountdown(REFRESH_SECONDS);
   }, []);
 
-  // ---- Ciclo de actualización automática ----
+  // ---- Recalcula el display cuando cambian los datos ----
+  useEffect(() => {
+    if (!data) return;
+    const next = computeDisplay(data, Date.now());
+
+    const prev = prevColorRef.current;
+    if (prev !== null && next.color !== prev && !mutedRef.current) {
+      if (next.color === "green") playSuccess();
+      else if (next.color === "red") playFailure();
+    }
+    prevColorRef.current = next.color;
+
+    setDisplay(next);
+  }, [data]);
+
+  // ---- Recalcula periódicamente para aplicar la regla de inactividad ----
+  // (aunque status.json no cambie, tras 60 min debe pasar a azul).
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (dataRef.current) setDisplay(computeDisplay(dataRef.current, Date.now()));
+    }, 30 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ---- Ciclo de actualización cada REFRESH_SECONDS ----
   useEffect(() => {
     refresh();
     const id = setInterval(refresh, REFRESH_SECONDS * 1000);
@@ -70,22 +112,20 @@ export default function App() {
   }, []);
 
   const toggleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen?.();
-    } else {
-      document.documentElement.requestFullscreen?.();
-    }
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else document.documentElement.requestFullscreen?.();
   }, []);
 
-  // Desbloquea el audio en la primera interacción del usuario.
   const handleInteract = useCallback(() => unlockAudio(), []);
 
   return (
     <div className="app" onPointerDown={handleInteract} onKeyDown={handleInteract}>
       {view === "beacon" ? (
         <BeaconScreen
-          global={global}
-          loading={loading}
+          display={display}
+          data={data}
+          loading={loading && !data}
+          offline={offline}
           countdown={countdown}
           lastFetch={lastFetch}
           muted={muted}
@@ -96,10 +136,9 @@ export default function App() {
           onOpenProjects={() => setView("projects")}
           wakeSupported={wakeSupported}
           wakeActive={wakeActive}
-          projectCount={PROJECTS.length}
         />
       ) : (
-        <ProjectsPanel results={results} onBack={() => setView("beacon")} />
+        <ProjectsPanel onBack={() => setView("beacon")} />
       )}
     </div>
   );

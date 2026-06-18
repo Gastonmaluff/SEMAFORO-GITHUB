@@ -1,0 +1,89 @@
+name: Update Status
+
+# Se dispara cuando otro repo envía repository_dispatch con event_type "beacon-status".
+on:
+  repository_dispatch:
+    types: [beacon-status]
+
+permissions:
+  contents: write # para commitear public/status.json
+  pages: write # para publicar GitHub Pages
+  id-token: write
+
+# Encolar las actualizaciones (no cancelar una "success" con una "working").
+concurrency:
+  group: beacon-update-status
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Escribir public/status.json con el payload recibido
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const p = JSON.parse(process.env.PAYLOAD || "{}");
+            const out = {
+              status: p.status || "unknown",
+              color: p.color || "",
+              project: p.project || "",
+              repo: p.repo || "",
+              message: p.message || "",
+              runUrl: p.runUrl || "",
+              pagesUrl: p.pagesUrl || "",
+              updatedAt: new Date().toISOString()
+            };
+            fs.mkdirSync("public", { recursive: true });
+            fs.writeFileSync("public/status.json", JSON.stringify(out, null, 2) + "\n");
+            console.log("status.json =>", out.status, out.repo);
+          '
+
+      - name: Commit del nuevo estado
+        run: |
+          git config user.name "beacon-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/status.json
+          if git diff --cached --quiet; then
+            echo "Sin cambios en status.json"
+          else
+            git commit -m "status: ${{ github.event.client_payload.status }} ${{ github.event.client_payload.repo }}"
+            git pull --rebase --autostash origin "${{ github.ref_name }}" || true
+            git push
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
