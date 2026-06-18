@@ -1,10 +1,10 @@
 {
-  "status": "working",
-  "color": "yellow",
-  "project": "Prueba Beacon",
-  "repo": "Gastonmaluff/LUCCAPARK-APP",
-  "message": "Test end-to-end",
-  "runUrl": "https://github.com/Gastonmaluff/LUCCAPARK-APP/actions",
-  "pagesUrl": "https://gastonmaluff.github.io/LUCCAPARK-APP/",
-  "updatedAt": "2026-06-18T15:14:20.629Z"
+  "status": "idle",
+  "color": "blue",
+  "project": "Esperando tarea IA",
+  "repo": "",
+  "message": "Esperando actividad",
+  "runUrl": "",
+  "pagesUrl": "",
+  "updatedAt": "2026-06-18T15:17:40.733Z"
 }
