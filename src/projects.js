@@ -6,20 +6,28 @@
 
 export const PROJECTS = [
   {
-    id: "paraiso",
-    name: "Paraíso Escondido",
-    owner: "gastoncema",
-    repo: "paraiso-escondido",
+    id: "panel-quintas",
+    name: "Panel de Quintas",
+    owner: "Gastonmaluff",
+    repo: "Panel-de-Quintas-",
     workflowHint: "pages",
-    pagesUrl: "https://gastoncema.github.io/paraiso-escondido/"
+    pagesUrl: "https://gastonmaluff.github.io/Panel-de-Quintas-/"
+  },
+  {
+    id: "next-control",
+    name: "Next Control",
+    owner: "Gastonmaluff",
+    repo: "NEXT-CONTROL",
+    workflowHint: "pages",
+    pagesUrl: "https://gastonmaluff.github.io/NEXT-CONTROL/"
   },
   {
     id: "luca",
     name: "Luca Park",
-    owner: "gastoncema",
-    repo: "luca-park",
+    owner: "Gastonmaluff",
+    repo: "LUCCAPARK-APP",
     workflowHint: "pages",
-    pagesUrl: "https://gastoncema.github.io/luca-park/"
+    pagesUrl: "https://gastonmaluff.github.io/LUCCAPARK-APP/"
   }
 ];
 
